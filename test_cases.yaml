@@ -1,0 +1,68 @@
+test_cases:
+  - description: "管理员查询所有薪水"
+    sql: "SELECT * FROM public.salary S1, private.salary S2 WHERE S2.amount > S1.amount"
+    user_id: 2
+
+  - description: "普通员工薪水查询"
+    sql: "SELECT * FROM salary s WHERE amount > 1000"
+    user_id: 1
+
+  - description: "普通员工查询薪水"
+    sql: "SELECT * FROM salary WHERE amount > 1000"
+    user_id: 1
+
+  - description: "普通员工查询薪水（应添加 company_id=1 过滤）"
+    sql: "SELECT * FROM salary WHERE amount > 1000"
+    user_id: 1
+
+  - description: "联表查询（JOIN employee 和 salary）"
+    sql: "SELECT e.user_name, s.amount FROM employee e JOIN salary s ON e.user_id = s.user_id"
+    user_id: 1
+
+  - description: "子查询测试"
+    sql: "SELECT * FROM salary WHERE company_id IN (SELECT company_id FROM employee WHERE user_id = 1)"
+    user_id: 1
+
+  - description: "边界测试：包含注释和别名"
+    sql: "SELECT s.amount as salary_amount /* comment with salary */ FROM salary s WHERE amount > 1000 -- line comment"
+    user_id: 1
+
+  - description: "边界测试：同名表（self-join）"
+    sql: "SELECT s1.amount, s2.amount FROM salary s1 JOIN salary s2 ON s1.user_id = s2.user_id"
+    user_id: 1
+
+  - description: "无权限表测试（假设 age 无行级权限）"
+    sql: "SELECT * FROM age"
+    user_id: 1
+
+  - description: "管理员查询所有员工信息"
+    sql: "SELECT * FROM employee"
+    user_id: 2
+
+  - description: "普通员工尝试查询敏感数据（无权限）"
+    sql: "SELECT * FROM salary WHERE user_id = 3"
+    user_id: 1
+
+  - description: "测试 SQL 注入"
+    sql: "SELECT * FROM salary WHERE amount > 1000 OR 1=1"
+    user_id: 1
+
+  - description: "查询不存在的表"
+    sql: "SELECT * FROM non_existing_table"
+    user_id: 1
+
+  - description: "查询空表"
+    sql: "SELECT * FROM empty_table"  # 假设 empty_table 是一个空表
+    user_id: 1
+
+  - description: "管理员查询所有员工信息（无条件）"
+    sql: "SELECT * FROM employee"
+    user_id: 2
+
+  - description: "普通员工查询所有薪水（应添加 company_id=1 过滤）"
+    sql: "SELECT * FROM salary WHERE company_id = 1"
+    user_id: 1
+
+  - description: "测试复杂的联表查询"
+    sql: "SELECT e.user_name, s.amount FROM employee e LEFT JOIN salary s ON e.user_id = s.user_id WHERE s.amount > 1000"
+    user_id: 1

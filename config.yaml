@@ -1,0 +1,24 @@
+# 数据库配置
+database:
+  host: localhost
+  port: 3306
+  user: root
+  password: "123456"
+  database: data_permission_system
+  charset: utf8mb4
+
+# 系统表配置
+system_tables:
+  - employee
+  - salary
+  - age
+  - company
+
+# 缓存配置
+cache:
+  default_ttl: 300
+
+# 环境配置
+environment:
+  debug: true
+  log_level: INFO
