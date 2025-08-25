@@ -1,4 +1,5 @@
-yaml
+pyyaml
 sqlalchemy
 loguru
 sqlglot
+pymysql

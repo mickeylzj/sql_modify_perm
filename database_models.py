@@ -1,4 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey
+# database_models.py
+
+from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey, DECIMAL
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -6,6 +8,44 @@ import enum
 import json
 
 Base = declarative_base()
+
+class Employee(Base):
+    """员工信息表"""
+    __tablename__ = 'employee'
+    
+    user_id = Column(Integer, primary_key=True, autoincrement=True, comment='用户ID')
+    user_name = Column(String(100), nullable=False, comment='用户姓名')
+    company_id = Column(Integer, nullable=False, comment='公司ID')
+    role = Column(String(50), nullable=False, comment='默认角色')
+    
+    # 可选：如果有Company表，可以建立关系
+    # company = relationship("Company", back_populates="employees")
+
+class Company(Base):
+    """公司信息表"""
+    __tablename__ = 'company'
+    
+    company_id = Column(Integer, primary_key=True, autoincrement=True, comment='公司ID')
+    company_name = Column(String(100), nullable=False, comment='公司名称')
+    
+    # employees = relationship("Employee", back_populates="company")
+
+class Salary(Base):
+    """薪资信息表"""
+    __tablename__ = 'salary'
+    
+    salary_id = Column(Integer, primary_key=True, autoincrement=True, comment='薪资ID')
+    user_id = Column(Integer, ForeignKey('employee.user_id'), nullable=False, comment='用户ID')
+    amount = Column(DECIMAL(10, 2), nullable=False, comment='薪资金额')
+    company_id = Column(Integer, ForeignKey('company.company_id'), nullable=False, comment='公司ID')
+
+class Age(Base):
+    """年龄信息表"""
+    __tablename__ = 'age'
+    
+    age_id = Column(Integer, primary_key=True, autoincrement=True, comment='年龄记录ID')
+    user_id = Column(Integer, ForeignKey('employee.user_id'), nullable=False, comment='用户ID')
+    age = Column(Integer, nullable=False, comment='年龄')
 
 class PermissionType(enum.Enum):
     """权限类型枚举"""

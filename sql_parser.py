@@ -1,3 +1,5 @@
+# sql_parser.py
+
 from collections import deque
 from typing import Dict, Set, Optional
 import sqlglot
