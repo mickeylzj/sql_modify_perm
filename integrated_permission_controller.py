@@ -99,6 +99,7 @@ class PermissionManager:
         logger.info(f"用户权限构建完成: {len(permissions)} 个表的权限")
         return permissions
 
+# TODO: 添加SQL改写放到sql_parser.py中
 class SQLRewriteEngine:
     """SQL改写"""
     
@@ -427,7 +428,7 @@ class RefactoredPermissionController:
             logger.info("ORM自动建表完成")
         else:
             logger.info("跳过自动建表（配置禁用）")
-    
+    # TODO:effective_role
     def get_user_permissions_with_cache(self, user_id: int) -> Dict:
         """获取用户权限（带缓存）"""
         cache_key = f"user_perm_{user_id}"
@@ -458,12 +459,10 @@ class RefactoredPermissionController:
             'user_name': user_info.user_name,
             'company_id': user_info.company_id,
             'role': user_info.role,
-            'effective_role': effective_role,
             'table_permissions': permissions,
             'context': {
                 'user_id': user_info.user_id,
                 'user_company_id': user_info.company_id,
-                'user_role': effective_role
             }
         }
         

@@ -48,7 +48,7 @@ class SQLTableExtractor:
             logger.error(f"AST分析失败: {e}")
             return self._extract_table_info_fallback(sql)
     
-    # TODO： 这个函数的返回值 list[str] ? 
+    # TODO： 这个函数的返回值 list[str] ? 返回函数签名备注
 
     def _traverse_ast_for_tables(self, ast: exp.Expression) -> list:
         """使用BFS遍历AST寻找表节点"""
