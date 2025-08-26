@@ -19,6 +19,8 @@ class SQLTableExtractor:
             'ELSE', 'END', 'NULL', 'TRUE', 'FALSE', 'IS', 'NOT', 'IN', 'EXISTS'
         }
     
+    #  TODO： 如果sql中的表没有schema，函数返回的内容是什么？可以多举几个例子说明
+    #  TODO： 如果sql中的表没有alias，函数返回的内容是什么？可以多举几个例子说明
     def extract_table_info_with_schema(self, sql: str) -> Dict[str, str]:
         """
         提取表信息，支持schema.table格式
@@ -46,6 +48,8 @@ class SQLTableExtractor:
             logger.error(f"AST分析失败: {e}")
             return self._extract_table_info_fallback(sql)
     
+    # TODO： 这个函数的返回值 list[str] ? 
+
     def _traverse_ast_for_tables(self, ast: exp.Expression) -> list:
         """使用BFS遍历AST寻找表节点"""
         tables = []

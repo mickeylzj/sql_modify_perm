@@ -21,6 +21,7 @@ class UserManager:
     def __init__(self, session_factory):
         self.SessionLocal = session_factory
     
+    # TODO： 函数应当返回ORM，用到这个函数返回值的地方也要用ORM，才是ORM结构化的优势和意义
     def get_user_basic_info(self, user_id: int) -> Dict:
         """获取用户基本信息"""
         session = self.SessionLocal()
@@ -42,6 +43,7 @@ class UserManager:
         finally:
             session.close()
     
+    # TODO： effective_role如无必要 可删除
     def get_effective_role(self, user_id: int, default_role: str) -> str:
         """获取用户有效角色"""
         session = self.SessionLocal()
@@ -353,6 +355,7 @@ class RefactoredPermissionController:
         self.cache_manager = CacheManager(self.config.get('cache.default_ttl', 300))
         
         # 初始化SQL解析器
+        # TODO: system_tables应该从数据库获取，作为需要权限管控的表？
         self.system_tables = self.config.get_system_tables()
         self.sql_extractor = SQLTableExtractor(self.system_tables)
         
@@ -363,6 +366,7 @@ class RefactoredPermissionController:
         """初始化数据库连接"""
         db_config = self.config.get_db_config()
         
+        # 这个db_url可以在 config.py中封装一个函数
         self.db_url = (f"mysql+pymysql://{db_config['user']}:{db_config['password']}@"
                       f"{db_config['host']}:{db_config.get('port', 3306)}/"
                       f"{db_config['database']}?charset={db_config.get('charset', 'utf8mb4')}")
@@ -386,6 +390,8 @@ class RefactoredPermissionController:
         except Exception as e:
             logger.error(f"❌ ORM自动建表失败: {e}")
     
+
+    # TODO: 以下函数内effective_role , 无用可全部删去
     def get_user_permissions_with_cache(self, user_id: int) -> Dict:
         """获取用户权限（带缓存）- ORM版本"""
         cache_key = f"user_perm_{user_id}"
@@ -429,11 +435,13 @@ class RefactoredPermissionController:
             return cached_rules
         
         # 使用ORM获取规则
+        # TODO: 从数据库读取信息的时候，建议加一个logger日志，方便排查问题，比如什么时候开始读取、什么时候读取完成，比如读取了多少条等等
         rules = self.permission_manager.get_permission_rules()
         self.cache_manager.set(cache_key, rules, 'rule')
         
         return rules
     
+    # TODO: 这个函数是否有必要？
     def extract_table_info_with_schema(self, sql: str) -> Dict[str, str]:
         """提取表信息，支持schema.table格式"""
         return self.sql_extractor.extract_table_info_with_schema(sql)
@@ -441,6 +449,8 @@ class RefactoredPermissionController:
     def execute_query_with_permissions(self, sql: str, user_id: int, log_execution: bool = True) -> Dict:
         """执行带权限控制的查询"""
         start_time = time.time()
+
+        # TODO： 可以直接使用 PermissionLog ORM，有ORM就不要用dict
         execution_info = {
             'user_id': user_id,
             'original_sql': sql,
@@ -509,6 +519,8 @@ class RefactoredPermissionController:
             session.close()
     
     # === 新增的ORM便捷方法 ===
+
+    # TODO: 以下函数是否有用？
     
     def create_user(self, user_name: str, company_id: int, role: str) -> Employee:
         """创建用户"""

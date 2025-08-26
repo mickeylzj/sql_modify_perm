@@ -9,6 +9,8 @@ import json
 
 Base = declarative_base()
 
+# TODO： 以下ORM 哪些是权限处理必备的？哪些是样例业务数据？可以区分一下 放到不同的python文件里
+
 class Employee(Base):
     """员工信息表"""
     __tablename__ = 'employee'
