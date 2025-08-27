@@ -203,3 +203,193 @@ class SQLTableExtractor:
                 tables[table_name] = alias
         
         return tables
+
+# TODO: 添加SQL改写放到sql_parser.py中
+class SQLRewriteEngine:
+    """SQL改写"""
+    
+    def __init__(self, dialect: str = 'mysql'):
+        self.dialect = dialect
+        self.sql_keywords = {
+            'SELECT', 'FROM', 'WHERE', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
+            'ON', 'AND', 'OR', 'GROUP', 'ORDER', 'BY', 'HAVING', 'LIMIT',
+            'UNION', 'ALL', 'DISTINCT', 'AS', 'CAST', 'CASE', 'WHEN', 'THEN',
+            'ELSE', 'END', 'NULL', 'TRUE', 'FALSE', 'IS', 'NOT', 'IN', 'EXISTS'
+        }
+    
+    def validate_sql_security(self, sql: str) -> Dict:
+        """SQL安全性验证"""
+        security_report = {
+            'is_safe': True,
+            'warnings': [],
+            'risks': [],
+            'blocked_operations': []
+        }
+        
+        ast = sqlglot.parse_one(sql, dialect=self.dialect)
+        
+        # 检查危险操作
+        dangerous_checks = [
+            (exp.Drop, "DROP操作"),
+            (exp.Delete, "DELETE操作"),
+            (exp.Update, "UPDATE操作"),
+            (exp.Insert, "INSERT操作"),
+            (exp.Alter, "ALTER操作"),
+            (exp.Create, "CREATE操作")
+        ]
+        
+        for op_type, op_name in dangerous_checks:
+            dangerous_ops = list(ast.find_all(op_type))
+            if dangerous_ops:
+                security_report['is_safe'] = False
+                security_report['blocked_operations'].append(f"{op_name} (发现 {len(dangerous_ops)} 个)")
+        
+        # 检查TRUNCATE
+        if 'TRUNCATE' in sql.upper():
+            security_report['is_safe'] = False
+            security_report['blocked_operations'].append("TRUNCATE操作")
+        
+        # 检查危险函数
+        risky_functions = ['LOAD_FILE', 'INTO OUTFILE', 'SYSTEM', 'EXEC', 'SHELL', 'EVAL']
+        all_functions = list(ast.find_all((exp.Func, exp.Anonymous)))
+        
+        for func in all_functions:
+            func_name = func.sql().upper() if hasattr(func, 'sql') else str(func).upper()
+            for risky in risky_functions:
+                if risky in func_name:
+                    security_report['risks'].append(f"使用了潜在危险函数: {func_name}")
+                    break
+        
+        logger.info(f"SQL安全检查完成: {'安全' if security_report['is_safe'] else '存在风险'}")
+        return security_report
+    
+    def modify_sql_with_permissions(self, sql: str, user_permissions: Dict, table_info: Dict) -> str:
+        """SQL权限改写 """
+        if not table_info:
+            logger.info("无需权限改写，返回原SQL")
+            return sql
+        
+        logger.info(f"开始SQL权限改写: 涉及表={list(table_info.keys())}")
+        
+        # 检查表访问权限
+        for table_name in table_info.keys():
+            if table_name in user_permissions:
+                table_perm = user_permissions[table_name]
+                if not table_perm['access']:
+                    raise PermissionError(f"没有访问表 {table_name} 的权限")
+        
+        # 收集需要过滤的表
+        cte_clauses = []
+        table_replacements = {}
+        
+        for table_name, alias in table_info.items():
+            if table_name in user_permissions:
+                table_perm = user_permissions[table_name]
+                if table_perm['row_filter']:
+                    # 替换占位符
+                    modified_filter = self._replace_placeholders(
+                        table_perm['row_filter'], 
+                        user_permissions.get('context', {})
+                    )
+                    
+                    # 去掉WHERE前缀
+                    if modified_filter.strip().upper().startswith('WHERE'):
+                        modified_filter = modified_filter[5:].strip()
+                    
+                    # 生成CTE
+                    cte_name = f"filtered_{table_name.replace('.', '_')}"
+                    cte_sql = f"{cte_name} AS (SELECT * FROM {table_name} WHERE {modified_filter})"
+                    cte_clauses.append(cte_sql)
+                    table_replacements[table_name] = table_name
+                    
+                    logger.info(f"生成权限过滤CTE: {table_name} -> {cte_name}")
+        
+        if not cte_clauses:
+            logger.info("无需行级过滤，返回原SQL")
+            return sql
+        
+        # 构建完整SQL
+        cte_prefix = "WITH " + ", ".join(cte_clauses) + " "
+        full_sql = cte_prefix + sql
+        
+        # 解析并修改AST
+        ast = sqlglot.parse_one(full_sql, dialect=self.dialect)
+        
+        def replace_table_node(node):
+            """递归替换表节点"""
+            if isinstance(node, exp.Table):
+                table_name_lower = self._extract_table_name_from_node(node)
+                
+                if table_name_lower in table_replacements:
+                    if not self._is_in_cte_definition(node, ast):
+                        new_table_name = table_replacements[table_name_lower]
+                        node.this.set("this", exp.Identifier(this=new_table_name))
+                        logger.info(f"表替换: {table_name_lower} -> {new_table_name}")
+            
+            return node
+        
+        # 应用表替换
+        modified_ast = ast.transform(replace_table_node)
+        modified_sql = modified_ast.sql(dialect=self.dialect)
+        
+        logger.info(f"SQL改写完成")
+        return modified_sql
+    
+    def _extract_table_name_from_node(self, node: exp.Table) -> str:
+        """从表节点提取表名"""
+        if hasattr(node.this, 'name'):
+            return str(node.this.name).lower()
+        else:
+            return str(node.this).lower()
+    
+    def _is_in_cte_definition(self, table_node: exp.Table, ast: exp.Expression) -> bool:
+        """判断表节点是否在CTE定义中"""
+        cte_nodes = list(ast.find_all(exp.CTE))
+        for cte in cte_nodes:
+            if cte.this and self._is_node_descendant(table_node, cte.this):
+                return True
+
+    
+    def _is_node_descendant(self, child_node: exp.Expression, parent_node: exp.Expression) -> bool:
+        """检查节点是否为后代节点"""
+        queue = deque([parent_node])
+        visited = set()
+        
+        while queue:
+            current = queue.popleft()
+            current_id = id(current)
+            
+            if current_id in visited:
+                continue
+            visited.add(current_id)
+            
+            if current is child_node:
+                return True
+            
+            if hasattr(current, 'args'):
+                for key, value in current.args.items():
+                    if isinstance(value, exp.Expression):
+                        queue.append(value)
+                    elif isinstance(value, list):
+                        for item in value:
+                            if isinstance(item, exp.Expression):
+                                queue.append(item)
+        
+        return False
+
+    
+    def _replace_placeholders(self, template: str, context: Dict) -> str:
+        """替换SQL模板中的占位符"""
+        logger.info(f'替换占位符: {template}')
+        placeholders = re.findall(r'\$([a-zA-Z_]+)', template)
+        for ph in set(placeholders):
+            placeholder_key = f'\${ph}'
+            if ph in context:
+                value = context[ph]
+                safe_value = str(value)  # 确保值安全
+                template = template.replace(placeholder_key, safe_value)
+                logger.info(f'替换 {placeholder_key} -> {safe_value}')
+            else:
+                logger.error(f'占位符 {placeholder_key} 未找到，替换为默认值 NULL')
+                template = template.replace(placeholder_key, 'NULL')  # 默认替换为 NULL，避免SQL错误
+        return template
